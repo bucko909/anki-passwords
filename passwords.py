@@ -165,6 +165,15 @@ def aroundKeyPressEvent(self, evt, _old=''):
 	
 	_old(self, evt)
 
+def setGPGName():
+	""" Set the config's GPG name for encryption """
+	ret = QInputDialog.getText(mw, "Description", "Setting up passwords plugin: Enter the username to encrypt for in GPG")
+	if ret[1]:
+		config.gpg_name = unicode(ret[0])
+		config.save_name()
+	else:
+		return
+
 """ Display a sequence of dialog boxes then add a new entry to the deck """
 def addPassword():
 	ret = QInputDialog.getText(mw, "Description", "Enter a description for the password")
@@ -251,8 +260,15 @@ def initPlugin():
 	menu = QAction(mw)
 	menu.setText("Add Password")
 	mw.connect(menu, SIGNAL("triggered()"), addPassword)
+	menu2 = QAction(mw)
+	menu2.setText("Set GPG User Name")
+	mw.connect(menu2, SIGNAL("triggered()"), setGPGName)
 	mw.mainWin.menuTools.addSeparator()
 	mw.mainWin.menuTools.addAction(menu)
+	mw.mainWin.menuTools.addAction(menu2)
+	config.load()
+	if not config.loaded:
+		setGPGName()
 
 """ Ensure we can be set up. """
 mw.addHook("init", initPlugin)
