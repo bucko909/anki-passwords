@@ -57,6 +57,7 @@ MODEL="Password Model"
 SHOW_PASS_KEY=Qt.Key_S
 GPG_USER_NAME="David Buckley"
 SALT=u'This is where you should put your own salt'
+HASH='sha256'
 
 def configDir():
 	dirName = os.path.join(str(QDesktopServices.storageLocation(QDesktopServices.DataLocation)), "plugins/password")
@@ -169,7 +170,6 @@ def aroundKeyPressEvent(self, evt, _old=''):
 				except GPGMEError, e:
 					QMessageBox.information(mw, "Error", "Could not decrypt your password.\nError: " + str(e))
 					
-
 				evt.accept()
 				return
 	
@@ -186,6 +186,22 @@ def setGPGName():
 
 """ Display a sequence of dialog boxes then add a new entry to the deck """
 def addPassword():
+	""" Model's not there? Fix it before we get into worse trouble. """
+	if not [m for m in mw.deck.models if m.name == MODEL]:
+		m = Model(unicode(MODEL))
+		m.addFieldModel(FieldModel(u'Description', True, True))
+		m.addFieldModel(FieldModel(u'HMAC_%s' % HASH, True, True))
+		m.addFieldModel(FieldModel(u'GPG', True, True))
+		cm=CardModel(u'Password',u'%(Description)s',u'%%(HMAC_%s)s' % HASH)
+		cm.typeAnswer = u'HMAC_%s' % HASH
+		m.addCardModel(cm)
+		mw.deck.addModel(m)
+	else:
+		m, = [m for m in mw.deck.models if m.name == MODEL]
+		# Monkey patch existing models
+		if 'HMAC_%s' % HASH not in [ a.name for a in m.fieldModels ]:
+			m.addFieldModel(FieldModel(u'HMAC_%s' % HASH, True, True))
+
 	ret = QInputDialog.getText(mw, "Description", "Enter a description for the password")
 	if ret[1]:
 		desc = unicode(ret[0])
@@ -208,32 +224,15 @@ def addPassword():
 		QMessageBox.information(mw, "Mismatch", "Your passwords didn't match")
 		return
 
-	""" Model's not there? Fix it before we get into worse trouble. """
-	if not [m for m in mw.deck.models if m.name == MODEL]:
-		m = Model(unicode(MODEL))
-		m.addFieldModel(FieldModel(u'Description', True, True))
-		m.addFieldModel(FieldModel(u'SHA1', True, True))
-		m.addFieldModel(FieldModel(u'GPG', True, True))
-		cm=CardModel(u'Password',u'%(Description)s',u'%(SHA1)s')
-		cm.typeAnswer = u'SHA1'
-		m.addCardModel(cm)
-		mw.deck.addModel(m)
-
 	""" Attempt to add the card. """
 	try:
 		fact = mw.deck.newFact()
-		"TODO Is this a hack?"
-		for m in mw.deck.models:
-			if m.name == 'Password Model':
-				fact.model = m
 
 		fact['Description'] = desc
 
-		""" hashlib stuff for SHA1 hashing """
-		sha1 = hashlib.new('sha1')
-		salted = SALT + pass1
-		sha1.update(salted.encode('utf-8').encode('base64'))
-		fact['SHA1'] = unicode(sha1.hexdigest())
+		""" Fill in the MAC """
+		mac = hmac.new(config.key, pass1.encode('utf-8'), getattr(hashlib, HASH))
+		fact['HMAC_%s' % HASH] = unicode(mac.hexdigest())
 
 		""" PyMe setup """
 		c = Context();
