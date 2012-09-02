@@ -50,12 +50,56 @@ from pyme.errors import GPGMEError
 import re
 import hashlib
 import hmac
+import os
 
 """ You may wish to change these. """
 MODEL="Password Model"
 SHOW_PASS_KEY=Qt.Key_S
 GPG_USER_NAME="David Buckley"
 SALT=u'This is where you should put your own salt'
+
+def configDir():
+	dirName = os.path.join(str(QDesktopServices.storageLocation(QDesktopServices.DataLocation)), "plugins/password")
+	try:
+		os.makedirs(dirName)
+	except:
+		pass
+	print "Passwords config location:", dirName
+	return dirName
+
+class Config(object):
+	def __init__(self):
+		self.dirName = configDir()
+		self.key = None
+		self.gpg_user_name = None
+		self.loaded = False
+
+	def load(self):
+		loaded = True
+		namePath = os.path.join(self.dirName, "gpg_name")
+		if os.path.exists(namePath):
+			self.gpg_name = open(namePath).read()
+		else:
+			self.gpg_name = None
+			loaded = False
+
+		keyPath = os.path.join(self.dirName, "key")
+		if os.path.exists(keyPath):
+			self.key = open(keyPath).read()
+		else:
+			print "Passwords: GENERATING NEW KEY"
+			self.key = os.urandom(hashlib.new(HASH).digest_size)
+			if self.key:
+				open(keyPath, "w").write(self.key)
+
+		self.loaded = loaded
+
+	def save_name(self):
+		namePath = os.path.join(self.dirName, "gpg_name")
+		if self.gpg_name:
+			open(namePath, "w").write(self.gpg_name)
+
+config = Config()
 
 """ This routine is called after showAnswerButton, and fixes the edit box to
     hide typed text. """
