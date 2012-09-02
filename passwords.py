@@ -114,13 +114,23 @@ def afterShowAnswerButton(self):
     sum, replacing it with a status message. """
 def aroundDrawAnswer(self, _old=''):
 	if self.main.currentCard.fact.model.name == MODEL:
-		sha1 = self.main.currentCard.fact['SHA1']
-		d = hashlib.new('sha1')
-		salted = SALT + unicode(self.main.typeAnswerField.text())
-		self.main.typeAnswerField.setText("")
-		d.update(salted.encode('utf-8').encode('base64'))
+		possible_macs = [ s[5:] for s in self.main.currentCard.fact.keys() if s[:5] == 'HMAC_' ]
+		if possible_macs:
+			my_hash_fn = possible_macs[0]
+			stored_hash = self.main.currentCard.fact['HMAC_%s' % my_hash_fn]
+			my_hash = unicode(hmac.new(config.key, unicode(self.main.typeAnswerField.text()).encode('utf-8'), getattr(hashlib, my_hash_fn)).hexdigest())
+		else:
+			# TODO should really be converting the full database by re-encrypting
+			# This clause is a fallback for cards made using the old model.
+			# The user will need to hard-code a SALT.
+			stored_hash = self.main.currentCard.fact['SHA1']
+			d = hashlib.new('sha1')
+			salted = SALT + unicode(self.main.typeAnswerField.text())
+			self.main.typeAnswerField.setText("")
+			d.update(salted.encode('utf-8').encode('base64'))
+			my_hash = unicode(d.hexdigest())
 
-		if (d.hexdigest() == sha1):
+		if (my_hash == stored_hash):
 			self.write(self.center('<span id=answer />' + self.mungeQA(self.main.deck, "Correct!")))
 		else:
 			self.write(self.center('<span id=answer />' + self.mungeQA(self.main.deck, "Wrong! Press S to decrypt and show password.")))
